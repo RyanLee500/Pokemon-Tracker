@@ -9,6 +9,18 @@ type Props = {
   onRemove: (id: string) => void
 }
 
+function CustomTooltip({ active, payload, label }: { active?: boolean; payload?: any[]; label?: string }) {
+  if (active && payload && payload.length) {
+    return (
+      <div style={{ background: 'white', border: '1px solid #ccc', padding: '10px', borderRadius: '4px' }}>
+        <p style={{ color: '#00cc00', fontWeight: 700, fontSize: 13, margin: '0 0 4px 0' }}>{label}</p>
+        <p style={{ color: '#333', margin: 0 }}>${Number(payload[0].value).toFixed(2)}</p>
+      </div>
+    )
+  }
+  return null
+}
+
 export default function PriceCard({ card, onRemove }: Props) {
   const [history, setHistory] = useState<PriceHistory[]>([])
   const [loading, setLoading] = useState(true)
@@ -111,12 +123,12 @@ export default function PriceCard({ card, onRemove }: Props) {
       </div>
 
       {/* BOTTOM SECTION - 60% - chart */}
-      <div className="h-[220px] bg-gray-600 p-4 flex flex-col">
+      <div className="h-[220px] bg-gray-600 p-4 flex flex-col text-white">
         <div className="flex-1 min-h-0">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData}>
               <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-              <Tooltip formatter={(value) => [`$${Number(value).toFixed(2)}`, 'Price']} />
+              <Tooltip content={<CustomTooltip />} />
               <Line type="monotone" dataKey="price" stroke={lineColor} strokeWidth={2} dot={{ r: 3 }} />
             </LineChart>
           </ResponsiveContainer>
@@ -150,7 +162,7 @@ export default function PriceCard({ card, onRemove }: Props) {
         ) : (
           <button
             onClick={() => setShowUpdateForm(true)}
-            className="mt-2 text-sm text-white-400 hover:underline text-left"
+            className="mt-2 text-sm text-white hover:underline text-left"
           >
             + Update price
           </button>
