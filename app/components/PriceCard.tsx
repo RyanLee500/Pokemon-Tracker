@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis } from 'recharts'
+import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { supabase, type Card, type PriceHistory } from '@/lib/supabase'
 
 type Props = {
@@ -27,6 +27,7 @@ export default function PriceCard({ card, onRemove }: Props) {
   const [showUpdateForm, setShowUpdateForm] = useState(false)
   const [newPrice, setNewPrice] = useState('')
   const [saving, setSaving] = useState(false)
+  const [timeRange, setTimeRange] = useState<'1M' | '3M' | '6M' | '1Y' | 'ALL'>('3M')
 
   useEffect(() => {
     loadHistory()
@@ -69,19 +70,50 @@ export default function PriceCard({ card, onRemove }: Props) {
   }
 
   const latest = history[history.length - 1]?.price ?? 0
-  const prev24h = history.length >= 2 ? history[history.length - 2].price : latest
-  const first30d = history[0]?.price ?? latest
+const latestDate = history[history.length - 1]?.recorded_at
+  ? new Date(history[history.length - 1].recorded_at)
+  : new Date()
 
-  const change24h = prev24h ? ((latest - prev24h) / prev24h) * 100 : 0
-  const change30d = first30d ? ((latest - first30d) / first30d) * 100 : 0
+const oneDayAgo = new Date(latestDate.getTime() - 24 * 60 * 60 * 1000)
+const thirtyDaysAgo = new Date(latestDate.getTime() - 30 * 24 * 60 * 60 * 1000)
 
-  const chartData = history.map((h) => ({
-    date: new Date(h.recorded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-    price: h.price,
-  }))
+const closest24h = history.reduce((prev, curr) => {
+  const currDiff = Math.abs(new Date(curr.recorded_at).getTime() - oneDayAgo.getTime())
+  const prevDiff = Math.abs(new Date(prev.recorded_at).getTime() - oneDayAgo.getTime())
+  return currDiff < prevDiff ? curr : prev
+})
 
-  const isUp = latest >= first30d
-  const lineColor = isUp ? '#16a34a' : '#dc2626'
+const closest30d = history.reduce((prev, curr) => {
+  const currDiff = Math.abs(new Date(curr.recorded_at).getTime() - thirtyDaysAgo.getTime())
+  const prevDiff = Math.abs(new Date(prev.recorded_at).getTime() - thirtyDaysAgo.getTime())
+  return currDiff < prevDiff ? curr : prev
+})
+
+const change24h = closest24h ? ((latest - closest24h.price) / closest24h.price) * 100 : 0
+const change30d = closest30d ? ((latest - closest30d.price) / closest30d.price) * 100 : 0
+
+  const now = new Date()
+const rangeMap = {
+  '1M': 30,
+  '3M': 90,
+  '6M': 180,
+  '1Y': 365,
+  'ALL': 99999
+}
+
+const filteredHistory = history.filter((h) => {
+  const daysAgo = (now.getTime() - new Date(h.recorded_at).getTime()) / (1000 * 60 * 60 * 24)
+  return daysAgo <= rangeMap[timeRange]
+})
+
+const chartData = filteredHistory.map((h) => ({
+  date: new Date(h.recorded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+  price: h.price,
+}))
+
+  const rangeStartPrice = filteredHistory.length > 0 ? filteredHistory[0].price : latest
+const isUp = latest >= rangeStartPrice
+const lineColor = isUp ? '#16a34a' : '#dc2626'
 
   return (
     <div className="bg-gray-600 border border-gray-200 rounded-lg overflow-hidden flex flex-col">
@@ -105,7 +137,7 @@ export default function PriceCard({ card, onRemove }: Props) {
           <p className="text-xl font-semibold text-gray-900">${latest.toFixed(2)}</p>
           <div className="flex gap-3 text-xs mt-1">
             <span className={change24h >= 0 ? 'text-green-600' : 'text-red-600'}>
-              {change24h >= 0 ? '+' : ''}{change24h.toFixed(2)}% <span className="text-gray-400">24h</span>
+              {change24h >= 0 ? '+' : ''}{change24h.toFixed(2)}% <span className="text-gray-400">3d</span>
             </span>
             <span className={change30d >= 0 ? 'text-green-600' : 'text-red-600'}>
               {change30d >= 0 ? '+' : ''}{change30d.toFixed(2)}% <span className="text-gray-400">30d</span>
@@ -124,12 +156,34 @@ export default function PriceCard({ card, onRemove }: Props) {
 
       {/* BOTTOM SECTION - 60% - chart */}
       <div className="h-[220px] bg-gray-600 p-4 flex flex-col text-white">
+         <div className="flex gap-1 mb-2 w-full">
+  {(['1M', '3M', '6M', '1Y', 'ALL'] as const).map((range) => (
+    <button
+      key={range}
+      onClick={() => setTimeRange(range)}
+      className={`flex-1 py-0.5 rounded text-xs font-medium text-center ${
+  timeRange === range
+    ? 'bg-blue-600 text-white'
+    : 'bg-gray-500 text-gray-200 hover:bg-gray-400'
+}`}
+    >
+      {range}
+    </button>
+  ))}
+</div>
         <div className="flex-1 min-h-0">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData}>
               <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+              <YAxis
+                hide={true}
+                domain={([dataMin, dataMax]) => {
+                  const padding = (dataMax - dataMin) * 0.1
+                return [Math.floor(dataMin - padding), Math.ceil(dataMax + padding)]
+              }}
+              />
               <Tooltip content={<CustomTooltip />} />
-              <Line type="monotone" dataKey="price" stroke={lineColor} strokeWidth={2} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="price" stroke={lineColor} strokeWidth={2} dot={{ r: 1.5 }} />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -143,7 +197,7 @@ export default function PriceCard({ card, onRemove }: Props) {
               onChange={(e) => setNewPrice(e.target.value)}
               placeholder="New price"
               autoFocus
-              className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm text-gray-900 placeholder-gray-400"
+              className="w-28 px-2 py-1 border border-gray-300 rounded text-sm text-gray-900 placeholder-gray-400"
             />
             <button
               onClick={submitNewPrice}

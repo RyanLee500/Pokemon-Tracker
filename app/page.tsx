@@ -30,7 +30,7 @@ export default function Home() {
   }
 
   return (
-    <main className="max-w-7xl mx-auto px-6 py-8">
+    <main className="max-w-[1800px] mx-auto px-6 py-8">
       <h1 className="text-2xl font-semibold mb-6">Pokemon Card Price Tracker</h1>
 
       <AddCardSearch onCardAdded={loadCards} />
