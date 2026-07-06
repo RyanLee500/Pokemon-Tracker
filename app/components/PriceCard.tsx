@@ -107,7 +107,7 @@ const filteredHistory = history.filter((h) => {
 })
 
 const chartData = filteredHistory.map((h) => ({
-  date: new Date(h.recorded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+  date: new Date(h.recorded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }),
   price: h.price,
 }))
 
